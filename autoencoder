@@ -1,87 +1,71 @@
-# 1. Import necessary packages
+
+# 1. Import required libraries
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 
 # 2. Load MNIST dataset
-mnist = tf.keras.datasets.mnist
+(x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
 
-(x_train, y_train), (x_test, y_test) = mnist.load_data()
+# 3. Select only digit 0 for training
+x_train = x_train[y_train == 0]
 
-# 3. Normalize the images
+# 4. Normalize the images
 x_train = x_train / 255.0
 x_test = x_test / 255.0
 
-# Flatten images into 784 values
+# 5. Flatten the images
 x_train = x_train.reshape(-1, 784)
 x_test = x_test.reshape(-1, 784)
 
-# Select only digit 0 for training
-x_train_normal = x_train[y_train == 0]
-
-# 4. Define the Autoencoder architecture
-model = tf.keras.Sequential([
-
-    # Encoder
+# 6. Build the Encoder
+encoder = tf.keras.Sequential([
     tf.keras.layers.Input(shape=(784,)),
-    tf.keras.layers.Dense(64, activation='relu'),
-    tf.keras.layers.Dense(32, activation='relu'),
+    tf.keras.layers.Dense(128, activation='relu'),
+    tf.keras.layers.Dense(32, activation='relu')
+])
 
-    # Decoder
-    tf.keras.layers.Dense(64, activation='relu'),
+# 7. Build the Decoder
+decoder = tf.keras.Sequential([
+    tf.keras.layers.Input(shape=(32,)),
+    tf.keras.layers.Dense(128, activation='relu'),
     tf.keras.layers.Dense(784, activation='sigmoid')
 ])
 
-# 5. Compile the model
-model.compile(
+# 8. Build the Autoencoder
+autoencoder = tf.keras.Sequential([encoder, decoder])
+
+# 9. Compile the model
+autoencoder.compile(
     optimizer='adam',
     loss='mse',
     metrics=['mae']
 )
 
-# 6. Train the Autoencoder
-history = model.fit(
-    x_train_normal,
-    x_train_normal,
-    epochs=10,
-    batch_size=32
+# 10. Train the Autoencoder
+history = autoencoder.fit(
+    x_train, x_train,
+    epochs=5,
+    batch_size=256,
+    validation_split=0.1
 )
 
-# 7. Calculate reconstruction error
-train_predictions = model.predict(x_train_normal)
+# 11. Reconstruct test images
+reconstructed = autoencoder.predict(x_test)
 
-train_error = np.mean(
-    np.square(x_train_normal - train_predictions),
-    axis=1
-)
+# 12. Calculate reconstruction error
+error = np.mean(np.square(x_test - reconstructed), axis=1)
 
-# Set anomaly threshold
-threshold = np.percentile(train_error, 95)
+# 13. Set anomaly threshold
+threshold = np.percentile(error[:1000], 95)
 
-print("Anomaly Threshold:", threshold)
+# 14. Detect anomalies
+predictions = error > threshold
 
-# 8. Test the model
-test_predictions = model.predict(x_test)
+# 15. Display results
+print("Threshold:", threshold)
+print("Normal Images:", np.sum(predictions == False))
+print("Anomalous Images:", np.sum(predictions == True))
 
-test_error = np.mean(
-    np.square(x_test - test_predictions),
-    axis=1
-)
 
-# Detect anomalies
-predictions = test_error > threshold
 
-# Actual labels: 0 is normal, other digits are anomalies
-actual = (y_test != 0)
-
-# Calculate accuracy
-accuracy = np.mean(predictions == actual)
-
-print("Anomaly Detection Accuracy:", accuracy * 100, "%")
-
-# 9. Plot training loss
-plt.plot(history.history['loss'])
-plt.title('Training Loss')
-plt.xlabel('Epochs')
-plt.ylabel('Loss')
-plt.show()
