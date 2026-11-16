@@ -1,0 +1,87 @@
+# 1. Import necessary packages
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 2. Load MNIST dataset
+mnist = tf.keras.datasets.mnist
+
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+
+# 3. Normalize the images
+x_train = x_train / 255.0
+x_test = x_test / 255.0
+
+# Flatten images into 784 values
+x_train = x_train.reshape(-1, 784)
+x_test = x_test.reshape(-1, 784)
+
+# Select only digit 0 for training
+x_train_normal = x_train[y_train == 0]
+
+# 4. Define the Autoencoder architecture
+model = tf.keras.Sequential([
+
+    # Encoder
+    tf.keras.layers.Input(shape=(784,)),
+    tf.keras.layers.Dense(64, activation='relu'),
+    tf.keras.layers.Dense(32, activation='relu'),
+
+    # Decoder
+    tf.keras.layers.Dense(64, activation='relu'),
+    tf.keras.layers.Dense(784, activation='sigmoid')
+])
+
+# 5. Compile the model
+model.compile(
+    optimizer='adam',
+    loss='mse',
+    metrics=['mae']
+)
+
+# 6. Train the Autoencoder
+history = model.fit(
+    x_train_normal,
+    x_train_normal,
+    epochs=10,
+    batch_size=32
+)
+
+# 7. Calculate reconstruction error
+train_predictions = model.predict(x_train_normal)
+
+train_error = np.mean(
+    np.square(x_train_normal - train_predictions),
+    axis=1
+)
+
+# Set anomaly threshold
+threshold = np.percentile(train_error, 95)
+
+print("Anomaly Threshold:", threshold)
+
+# 8. Test the model
+test_predictions = model.predict(x_test)
+
+test_error = np.mean(
+    np.square(x_test - test_predictions),
+    axis=1
+)
+
+# Detect anomalies
+predictions = test_error > threshold
+
+# Actual labels: 0 is normal, other digits are anomalies
+actual = (y_test != 0)
+
+# Calculate accuracy
+accuracy = np.mean(predictions == actual)
+
+print("Anomaly Detection Accuracy:", accuracy * 100, "%")
+
+# 9. Plot training loss
+plt.plot(history.history['loss'])
+plt.title('Training Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.show()
